@@ -1,6 +1,6 @@
 # 🗺️ RFC: Verifiable Asymmetric Cartography & Programmable Objectives
 
-Following a recent discussion across the community (involving **Please No Pictures, Ocky, Econmartin, lacal, Social Assassin, beauKode, MiMiMi, Shalimar, Byron DuMont, and Scetrov**), we wanted to share a consolidated summary of how the "Fog of War" map changes are landing for builders and players, alongside a concrete proposal for **Fenris Creations (FC)** to bridge the gap between in-game exploration and 3rd-party tool building using cryptographically verifiable primitives.
+Following a recent discussion across the community (involving **Please No Pictures, Ocky, Econmartin, lacal, Social Assassin, beauKode, MiMiMi, ProtoDroidBot, Shalimar, Byron DuMont, and Scetrov**), we wanted to share a consolidated summary of how the "Fog of War" map changes are landing for builders and players, alongside a concrete proposal for **Fenris Creations (FC)** to bridge the gap between in-game exploration and 3rd-party tool building using cryptographically verifiable primitives.
 
 ---
 
