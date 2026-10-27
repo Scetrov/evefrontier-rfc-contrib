@@ -13,44 +13,62 @@ Following a recent discussion across the community (involving **Please No Pictur
 
 ---
 
-## 2. The Proposal: Cryptographic Cartography & Programmable Objectives
 
-Assuming FC will not make the full map visible by default, we don't want a static coordinate dump or an easily spoofed local loopback API. Instead, we can combine on-chain **Provable Object Data (PODs)**, **Zero-Knowledge General Purpose Circuits (GPCs)**, and **existing native UI** to make exploration verifiable, programmable, and tradeable.
+## 2. The Proposal: Primitives First, Community Builds the Rest
 
-### Pillar 1: Cryptographic Telemetry (PODs & GPCs)
+Assuming FC will not make the full map visible by default, we don't want a static coordinate dump or an easily spoofed local loopback API. We also don't want to hand FC a full system design to build. Tribal maps, intel markets, and objective contracts are things the community can and should build.
 
-Instead of exposing raw `(X, Y, Z)` coordinates or unverified plaintext logs, the FC game server acts as an issuer of **Provable Object Data (PODs)**—cryptographically signed, self-verifying data objects handed to the client upon jump or scan:
+What we need from FC is the small set of things **only the game server or client can provide**: signed, verifiable records of what happened in game, and a way to get them out of the client. We've staged these as **crawl / walk / run**. Each stage is useful on its own, so builders can ship on crawl while FC decides on the rest.
 
-* **Signed Spatial Telemetry:** When a player jumps or activates an observation module, the server issues a signed POD containing `CharacterID`, `FromSystemID`, `ToSystemID`, `RelativeDistance/Bearing`, `StarAttributes`, and `Timestamp`.
-* **Dynamic Scan PODs:** Scanning a system issues a signed POD attesting to the current snapshot of Smart Assemblies, mining progress, or gate statuses in that system at that exact timestamp.
-* **Zero-Knowledge Intel via GPCs:** Because PODs can be verified inside **General Purpose Circuits (GPCs)**, players and tribes can generate Zero-Knowledge proofs about their discoveries *without revealing the underlying raw data*. 
-  * *Example:* A scout can mathematically prove to a data broker contract that they possess fresh scan PODs for a 5-jump route connecting System A to System B (or prove an enemy assembly exists within X lightyears) **without revealing the exact intermediate systems or coordinates** until the bounty is paid.
-* **Lootable Map Fragments:** NPC caches/wrecks can drop signed nav-data PODs (or on-chain objects) that unlock verifiable system telemetry when claimed or traded.
+### Crawl: Signed Jump & Scan Receipts
 
-### Pillar 2: The "Server Attestation -> Client Relay" On-Chain Pattern
+* **P1. Signed receipts.** When a player jumps or scans, the server signs a receipt (e.g. `CharacterID`, `FromSystemID`, `ToSystemID`, scan snapshot, `Timestamp`) with **Ed25519**. Sui Move verifies Ed25519 natively (`sui::ed25519::ed25519_verify`), as does any off-chain backend. Receipts are **unforgeable**: nobody can fabricate one without FC's key.
+* **P2. Owner field.** Each receipt names the character / wallet it was issued to. Unforgeable is not the same as non-transferable; without an owner field a copied receipt can be used by anyone.
+* **P3. Published keys.** FC publishes its attestation public keys as an **on-chain registry object**, with rotation, so contracts and backends don't hard-code keys.
+* **P4. Batch signing.** FC signs a **Merkle root** over a batch of receipts, so a pilot can prove any single receipt against the root. Nobody wants to handle 1m individually signed receipts.
+* **P5. Assembly hand-off (open question).** Builders need some way to get receipts from the client into their contracts. One candidate is to make this a **capability of the existing Smart Assembly interaction**:
+  * An assembly declares which receipt types it accepts. When a pilot interacts with it, the client offers matching receipts and the pilot approves before anything is shared.
+  * The pilot has already chosen to interact with that assembly, and its owner is known on-chain. Recon objectives map naturally onto "scan X, bring the receipt back to this assembly."
+  * Not proposed: minting receipts as owned on-chain objects would remove the need for a hand-off, but FC would pay gas on every jump.
+### Walk: More Receipt Types & Hand-off Paths (Optional)
 
-To allow these off-chain cryptographic proofs to interact with Sui smart contracts without costing FC any gas:
+Same signing, owner field and keys as crawl, covering more of the game and, if needed, a second way out of the client. For example:
 
-1. **Off-Chain Issuance:** FC's server signs the event receipt (POD / Ed25519 attestation) and passes it to the player's local client/POD store.
-2. **Client Submission (On-Chain or Off-Chain):**
+* **In-game browser with a receipt bridge (if the assembly route isn't right).** There is no in-game browser today. If assembly interaction turns out to be the wrong hand-off path, the alternative is a client browser or flight-view overlay (e.g. on the embedded CEF) with a `window.ef` bridge to the local receipt store. It would need **per-site approval and selective sharing**, like a wallet "connect" prompt; exposing the whole receipt store to any page would let one malicious map harvest a pilot's intel history.
+* **Objective Tracker binding.** Pilots point the native top-left Tutorial/Objective tracker at a contract-defined objective. On completion the server issues a receipt: *"character X completed objective Y defined by contract Z."* Tribes can push recon missions to pilots' HUDs and verify completion without trusting the pilot.
+* **Loot receipts.** NPC caches and wrecks drop signed nav-data fragments.
+* **Destruction & status receipts.** Gates going offline, assemblies destroyed: a verifiable source for the "road closures" in Section 1.
 
-   * **Off-Chain Tribal Maps:** The player passes the POD (or a redacted GPC proof) directly to their tribe's permissioned map backend via the CEF browser. The map verifies FC's signature instantly—zero spoofing possible.
-   * **On-Chain Objectives & Markets:** The client bundles the server-signed attestation (or ZK proof) into a Sui transaction signed by the player's wallet and submits it to a **Cartography or Objective Smart Contract**.
+### Run: The Information Economy (Optional)
 
-> [!NOTE]
-> Optionally these may be grouped into a package, because no one wants to have 1m PODs to share.
-
-### Pillar 3: Repurpose the Top-Left Tutorial UI + CEF Overlay
-
-Non-technical players need a seamless way to interact with verifiable intel in-game without manual file uploads:
-
-* **Bindable Objective Tracker:** Allow players to point their native **top-left Tutorial/Objective UI** at a custom Smart Contract address. Tribes can push live recon missions (*"Submit a fresh Scan POD for System X"*, *"Verify route status to System Y"*) directly to their pilots' HUDs. When the server issues the matching POD, the player clicks "Complete" in the top-left tracker to submit the cryptographic proof via their wallet.
-* **Flight-View CEF Overlay & POD Bridge:** With the in-client CEF updated to Chromium 156, enabling a toggleable flight-view overlay with a `window.ef` JS bridge that exposes the player's local POD store allows community maps to ingest verifiable jump/scan proofs in real time and render permissioned tribal intel directly over the flight screen.
+* **POD-format signing.** The server also signs receipts as **Provable Object Data (PODs)** (EdDSA on BabyJubJub, Poseidon hashing), alongside Ed25519.
+* **Standard consumption GPCs.** FC publishes standard **General Purpose Circuit (GPC)** configurations for its receipt types, with Groth16 verifying keys on-chain, so every builder verifies proofs against the same circuits using `sui::groth16`.
+* **What this enables.** Zero-knowledge intel: a scout can prove they hold fresh scans for a 5-jump route from System A to System B, or that an enemy assembly exists within X lightyears, **without revealing the intermediate systems or coordinates**. That is the basis for intel markets, private bounties, and cross-tribe intel sharing without trusting the seller.
 
 ---
 
-## 3. Summary of "Asks" for FC
+## 3. What Builders Can Do With These
 
-1. **Cryptographic Telemetry Primitives (PODs):** Have the game server issue signed **Provable Object Data (PODs)** containing `solarSystemId`, star metadata, dynamic scan snapshots, and **relative distances/bearings** upon jump or scan—eliminating both C6 data scraping and spoofable plaintext logs.
-2. **GPC / On-Chain Verification Support:** Publish FC's attestation public keys so 3rd-party off-chain indexers, GPC zero-knowledge circuits, and Sui Move smart contracts can natively verify player-submitted discovery proofs.
-3. **HUD & CEF Integration:** Allow the top-left Objective Tracker to bind to custom smart contracts for proof submission, and expose the client's signed POD buffer to a persistent flight-view Chromium 156 IGB overlay.
+Examples, not asks. Design is up to whoever builds them, including replay protection, fair exchange, and pricing.
+
+* **Tribal intel maps:** pilots share receipts with their tribe's permissioned map, which verifies FC's signature, with rank-based layers (rendered in flight if an in-game browser lands).
+* **Recon objectives:** tribe contracts post "submit a fresh scan for System X" and pay out on a valid receipt.
+* **Route-intel markets:** sellers prove what they hold (run stage) before revealing it.
+* **Lootable nav data:** traded and consumed like any other item.
+
+---
+
+## 4. Open Questions for FC
+
+1. **Hand-off:** is the assembly interaction the right place for receipts to leave the client, or is there a better path?
+2. **In-game browser:** if assembly hand-off isn't right, is a client browser/overlay on the roadmap at all?
+3. **Jump receipt contents:** which fields go in jump receipts versus scan receipts? Signed relative distance/bearing on every jump would let players triangulate absolute coordinates quickly.
+4. **Cheapest additions:** which walk-stage receipt types would be cheapest for FC to add?
+
+---
+
+## 5. Summary of "Asks" for FC
+
+1. **Crawl (core):** Ed25519-signed jump and scan receipts with an owner field, an on-chain key registry, batch (Merkle root) signing, and an assembly hand-off path (P1-P5).
+2. **Walk (optional):** more receipt types (Objective Tracker completion, loot, destruction/status), and an in-game browser with a permissioned `window.ef` receipt bridge if the assembly route isn't right.
+3. **Run (optional):** POD-format signing plus standard GPC configurations with on-chain verifying keys, enabling a verifiable information economy.
